@@ -304,6 +304,10 @@ export class Web3 extends NodeUrl {
 
   private async subscribeAllEvents(address: string): Promise<void> {
     try {
+      if (this.hasHttp || this.subscribedContracts[address]) {
+        return;
+      }
+
       const fromBlock = await this.getBlockNumber();
 
       this.contracts[address].events.allEvents({ fromBlock, })
@@ -315,18 +319,12 @@ export class Web3 extends NodeUrl {
         });
 
       this.subscribedContracts[address] = true;
+
+      console.log('\x1b[32m%s\x1b[0m', `subscribeAllEvents in Contract ${address}_${this.net}`);
     }
     catch (e) {
-      // TODO watch this errors when the listener breaks
-      console.error(`------Error----- in subscribeAllEvents for the contract ${address} in the Network: ${this.net} using the provider: ${this.getUrlProvider()}`, e);
-
-      if (this.config.providerErrors.some((err) => e.message.includes(err))) {
-        await this.handleReconnect();
-
-        if (!this.hasHttp) {
-          await this.subscribeAllEvents(address);
-        }
-      }
+      return await this
+        .checkProviderError(e.message, this.subscribeAllEvents.name, address);
     }
   }
 
