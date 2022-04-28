@@ -94,6 +94,8 @@ export class Web3 extends NodeUrl {
 
     this.config = getConfig(config);
     this.contracts = {};
+    this.eventDataContracts = {};
+    this.subScribedContracts = {};
     this.walletKey = walletKey;
     this.initWeb3(config.envProvider);
   }
@@ -152,12 +154,8 @@ export class Web3 extends NodeUrl {
 
     this.setProvider(provider);
 
-    this.hasHttp = this.getUrlProvider().includes(providerProtocol.https);
-
     if (!this.hasHttp) {
       for (const [address, isSub] of Object.entries(this.subScribedContracts)) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
         if (!isSub) {
           await this.subscribeAllEvents(address);
         }
@@ -309,6 +307,7 @@ export class Web3 extends NodeUrl {
 
       const subscribRes = this.contracts[address].events.allEvents({ fromBlock, })
         .on('data', this.eventDataContracts[address])
+        .on('error', (error: unknown) => { throw error; })
         .on('connected', (str: string) => console.log(`subscribeAllEvents successfully in the Contract ${address} 
         and the Network: ${this.net} with the subscription id ${str} `));
 
@@ -328,7 +327,8 @@ export class Web3 extends NodeUrl {
     } = params;
 
     try {
-      do {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
         const [parseInfo] = await ParserInfo.findOrCreate({
           where: { network: this.net, address, }, defaults: { lastBlock: firstContractBlock, },
         });
@@ -341,8 +341,7 @@ export class Web3 extends NodeUrl {
         });
 
         await this.parseEventsLoopSleep();
-        // eslint-disable-next-line no-constant-condition
-      } while (true);
+      }
     }
     catch (e) {
       console.error('ParseEventsLoop Cancelled', e.message);
