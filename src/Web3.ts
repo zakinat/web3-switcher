@@ -65,8 +65,6 @@ const getConfig = ({
 export class Web3 extends NodeUrl {
   config: IWeb3Config;
 
-  protected web3: WEB3;
-
   static readonly utils = WEB3.utils;
 
   static readonly web3Version = WEB3.version;
@@ -75,11 +73,13 @@ export class Web3 extends NodeUrl {
 
   private readonly walletKey?: string;
 
+  protected web3: WEB3;
+
   protected contracts: {[address: string]: Contract, };
 
   protected eventDataContracts: {[address: string]: parseCallbackType, };
 
-  protected subScribedContracts: {[address: string]: boolean, };
+  protected subscribedContracts: {[address: string]: boolean, };
 
   protected abortReconnect: boolean;
 
@@ -93,10 +93,13 @@ export class Web3 extends NodeUrl {
     }
 
     this.config = getConfig(config);
+
     this.contracts = {};
     this.eventDataContracts = {};
-    this.subScribedContracts = {};
+    this.subscribedContracts = {};
+
     this.walletKey = walletKey;
+
     this.initWeb3(config.envProvider);
   }
 
@@ -155,10 +158,8 @@ export class Web3 extends NodeUrl {
     this.setProvider(provider);
 
     if (!this.hasHttp) {
-      for (const [address, isSub] of Object.entries(this.subScribedContracts)) {
-        if (!isSub) {
-          await this.subscribeAllEvents(address);
-        }
+      for (const [address, isSub] of Object.entries(this.subscribedContracts)) {
+        !isSub && await this.subscribeAllEvents(address);
       }
     }
   }
@@ -301,23 +302,31 @@ export class Web3 extends NodeUrl {
    * Web3 listeners and subscribers
    */
 
-  async subscribeAllEvents(address: string): Promise<void> {
+  private async subscribeAllEvents(address: string): Promise<void> {
     try {
       const fromBlock = await this.getBlockNumber();
 
-      const subscribRes = this.contracts[address].events.allEvents({ fromBlock, })
+      this.contracts[address].events.allEvents({ fromBlock, })
         .on('data', this.eventDataContracts[address])
-        .on('error', (error: unknown) => { throw error; })
-        .on('connected', (str: string) => console.log(`subscribeAllEvents successfully in the Contract ${address} 
-        and the Network: ${this.net} with the subscription id ${str} `));
+        .on('error', (error: unknown) => {
+          this.subscribedContracts[address] = false;
 
-      console.log('sssss', subscribRes);
+          throw error;
+        });
 
-      this.subScribedContracts[address] = true;
+      this.subscribedContracts[address] = true;
     }
     catch (e) {
-      return await this
-        .checkProviderError(e.message, this.subscribeAllEvents.name, address);
+      // TODO watch this errors when the listener breaks
+      console.error(`------Error----- in subscribeAllEvents for the contract ${address} in the Network: ${this.net} using the provider: ${this.getUrlProvider()}`, e);
+
+      if (this.config.providerErrors.some((err) => e.message.includes(err))) {
+        await this.handleReconnect();
+
+        if (!this.hasHttp) {
+          await this.subscribeAllEvents(address);
+        }
+      }
     }
   }
 
@@ -340,7 +349,7 @@ export class Web3 extends NodeUrl {
           events,
         });
 
-        await this.parseEventsLoopSleep();
+        await this.sleepParseEventsLoop();
       }
     }
     catch (e) {
@@ -432,10 +441,9 @@ export class Web3 extends NodeUrl {
 
   async listener(server: Server, p: IParamsListener): Promise<void> {
     const address = p.contractData.address.toLowerCase();
+    this.getContract(p.abi, address);
 
     try {
-      this.getContract(p.abi, address);
-
       await this.subscribe(p.jobs, {
         server,
         address,
@@ -478,7 +486,7 @@ export class Web3 extends NodeUrl {
     ]);
   }
 
-  async parseEventsLoopSleep() : Promise<void> {
+  async sleepParseEventsLoop() : Promise<void> {
     const maxInterval = Math.max(this.config.parseEventsIntervalMs.http as number, this.config.parseEventsIntervalMs.wss as number);
     const minInterval = Math.min(this.config.parseEventsIntervalMs.http as number, this.config.parseEventsIntervalMs.wss as number);
     const sleepCount = Math.floor(maxInterval / minInterval);

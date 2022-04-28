@@ -8,18 +8,18 @@ import { NodeUrl } from './NodeUrl';
 import { IUserWeb3Config, IWeb3Config, IParamsListener, TAsyncFunction, parseCallbackType } from './interfaces';
 export declare class Web3 extends NodeUrl {
     config: IWeb3Config;
-    protected web3: WEB3;
     static readonly utils: import("web3-utils").Utils;
     static readonly web3Version: string;
     static modules: import("web3").Modules;
     private readonly walletKey?;
+    protected web3: WEB3;
     protected contracts: {
         [address: string]: Contract;
     };
     protected eventDataContracts: {
         [address: string]: parseCallbackType;
     };
-    protected subScribedContracts: {
+    protected subscribedContracts: {
         [address: string]: boolean;
     };
     protected abortReconnect: boolean;
@@ -58,7 +58,7 @@ export declare class Web3 extends NodeUrl {
     /**
      * Web3 listeners and subscribers
      */
-    subscribeAllEvents(address: string): Promise<void>;
+    private subscribeAllEvents;
     private parseEventsLoop;
     private getEvent;
     private parseEvents;
@@ -69,6 +69,6 @@ export declare class Web3 extends NodeUrl {
      * */
     private checkProviderError;
     promiseFunc(callFunc: TAsyncFunction<any, any>, ...params: unknown[]): Promise<any>;
-    parseEventsLoopSleep(): Promise<void>;
+    sleepParseEventsLoop(): Promise<void>;
 }
 export default Web3;
