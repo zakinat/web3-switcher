@@ -1,22 +1,36 @@
 import { NodeProvider, } from './models';
+import { shuffleArray, } from './utils';
+import { IMap, } from './interfaces';
 
 export const providerProtocol = {
   wss: 'wss',
   https: 'https',
 };
 
+// eslint-disable-next-line no-use-before-define
+const nodeUrlIns: IMap<string, NodeUrl> = new Map();
+
 class NodeUrl {
+  net: string;
+
   private frozenProviders: NodeProvider[];
 
   private mutateProvider: NodeProvider | null;
 
-  private abortSearch = false;
+  private readonly isRandom;
 
-  public net: string;
-
-  constructor(net: string) {
+  protected constructor(net: string, isRandom: boolean) {
     this.net = net;
     this.frozenProviders = [];
+    this.isRandom = isRandom;
+  }
+
+  static findOrCreate(net: string, isRandom: boolean): NodeUrl {
+    if (!nodeUrlIns.has(net)) {
+      nodeUrlIns.set(net, new NodeUrl(net, isRandom));
+    }
+
+    return nodeUrlIns.get(net);
   }
 
   private async getProviders(): Promise<string | void> {
@@ -25,7 +39,7 @@ class NodeUrl {
     }
   }
 
-  protected async getNewProvider(): Promise<string | void> {
+  async getNewProvider(): Promise<string | void> {
     await this.getProviders();
 
     if (!this.mutateProvider) {
@@ -38,8 +52,12 @@ class NodeUrl {
         : null;
     }
 
-    if (!this.mutateProvider || !this.mutateProvider.providers.length || this.abortSearch) {
+    if (!this.mutateProvider || !this.mutateProvider.providers.length) {
       return;
+    }
+
+    if (this.isRandom) {
+      shuffleArray(this.mutateProvider.providers);
     }
 
     const url = this.mutateProvider.providers.find(({ urlReTry, }) => !!urlReTry)?.url;
@@ -89,10 +107,6 @@ class NodeUrl {
     }
 
     return this.getNewProvider();
-  }
-
-  freeProvider(): void {
-    this.frozenProviders = [];
   }
 }
 

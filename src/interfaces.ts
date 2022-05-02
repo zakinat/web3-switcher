@@ -1,7 +1,8 @@
 import { EventData, } from 'web3-eth-contract';
 import { HttpProviderOptions, WebsocketProviderOptions, } from 'web3-core-helpers';
-import { AbiItem, } from 'web3-utils';
 import { Server, } from '@hapi/hapi';
+import Web3 from './Web3';
+import Contract from './Contract';
 
 export interface IBlockTx {
   blockNumber: number,
@@ -17,12 +18,6 @@ interface IBaseListener {
 
 export interface IListenerParams extends IBaseListener {
   server: Server,
-  address: string,
-  firstContractBlock: number,
-}
-
-export interface IContractData {
-  address: string,
   firstBlock: number,
 }
 
@@ -30,24 +25,22 @@ export interface IJobsParams extends IListenerParams {
   net: string,
   data: EventData,
   isWs: boolean,
-  contractAddress?: string,
+  address: string,
 }
 
 export type jobsCallbackType = (params: IJobsParams) => Promise<void>;
 
 export interface IParamsListener extends IBaseListener {
-  contractData: IContractData,
-  abi: AbiItem[],
+  firstBlock: number,
   jobs: jobsCallbackType,
 }
 
 export interface IParseEventsCore {
-  address: string,
   events?: string[],
 }
 
 export interface IParseEventsLoopParams extends IParseEventsCore {
-  firstContractBlock: number,
+  firstBlock: number,
 }
 
 export interface BlockInfo {
@@ -64,25 +57,34 @@ export interface IProviders {
   wss?: WebsocketProviderOptions,
   http?: HttpProviderOptions,
 }
+
+export interface IUserConfigSwitcher {
+  providersOptions?: IProviders,
+  waitingFailReconnect?: number,
+  maxReconnectCount?: number,
+  isRandomSwitcher?: boolean,
+  waitingWeb3Response?: number,
+}
+
 export interface parseEventsIntervalMs {
   http?: number,
   wss?: number,
 }
 
-export interface IUserWeb3Config {
-  envProvider: string,
-  parseEventsIntervalMs?: parseEventsIntervalMs,
-  providersOptions?: IProviders,
-  extendProviderErrors?: string[],
-  waitingWeb3Response?: number,
-  waitingFailReconnect?: number,
-  waitingEventParsing?: number,
-  parseLimit?: number,
-  maxReconnectCount?: number,
+export interface IWeb3Config {
+  parseEventsIntervalMs: parseEventsIntervalMs,
+  waitingEventParsing: number,
+  parseLimit: number,
 }
 
-export interface IWeb3Config extends Required<IUserWeb3Config> {
+export interface IUserWeb3Config extends Partial<IWeb3Config>, IUserConfigSwitcher{
+  envProvider: string,
+  extendProviderErrors?: string[],
+}
+
+export interface IConfigSwitcher extends Required<IUserConfigSwitcher> {
   providerErrors: string[],
+
 }
 
 export type TAsyncFunction <A, O> = (...args: A[]) => Promise<O>;
@@ -90,3 +92,5 @@ export type TAsyncFunction <A, O> = (...args: A[]) => Promise<O>;
 export interface IMap<K, V> extends Map<K, V> {
   get(key: K): V;
 }
+
+export type IMutateClasses = Web3 | Contract;
